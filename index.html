@@ -1,0 +1,277 @@
+<html>
+  <head>
+    <!--Load the AJAX API-->
+	<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+	<script  src="https://code.jquery.com/jquery-2.2.4.min.js"  integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44="  crossorigin="anonymous"></script>
+
+
+	<style>
+		.chart{
+			width: 50%;
+			height: 50%;
+			float: left;
+		}
+
+		.chart.fullWidth {
+			width: 100%;
+			height: 100%;
+		}
+
+		.fullPage{
+			position: fixed;
+			width: 100px;
+			height: 50px;
+			line-height: 50px;
+			top:0;
+			left: 0;
+			text-align: center;
+			z-index: 9999;
+			cursor: pointer;
+			background-color: black;
+			color: white;
+			font-weight: bold;
+		}
+
+		#preloader{
+		    width: 100%;
+		    height: 100%;
+		    position: fixed;
+		    top: 0;
+		    left: 0;
+		    z-index: 9999;
+		    background-color: #100f11;
+		}
+
+		#preloader img{
+			width: 800px;
+			height: 600px;
+			margin: 0 auto;
+			display: block;
+			position: relative;
+			top: 50%;
+			transform: translateY(-50%);
+		}
+
+	</style>
+
+	<script type="text/javascript">
+		
+
+	$(document).ready(function(){
+
+
+		var url 		= "http://finance.google.com/finance/info?client=ig&q=YNAP,BIT:MS,TSLA,TYO";//,BIT:MS
+
+		var stockPilot = {"YNAP":27.2, "MS":4.12, "TSLA":228, "TYO": 14.9}
+
+		var date;
+
+		var isFirstTime = true;
+
+		var cache		= {
+			"YNAP" : [],
+			"MS" : [],
+			"TSLA":[],
+			"TYO":[]
+		}
+
+		for ( var i = 0; i < 7; i++ ){
+			$("body").append('<div class="chart" id="chart_'+(i+1)+'"></div>')
+		}
+
+		google.charts.load('current', {'packages':['corechart','bar']});
+		google.charts.setOnLoadCallback(startInt());
+
+		$(".fullPage").on("click", function(){
+			$(".chart").toggleClass("fullWidth");
+		});
+
+		function startInt(){
+			setInterval (function(){
+				callService();
+			}, 5000 );
+		}
+
+		function callService(){
+			$.ajax({
+				url: url,
+				type: "GET",
+	            dataType: "jsonp",
+				beforeSend: function( xhr ) {
+					xhr.overrideMimeType( "text/plain; charset=x-user-defined" );
+				}
+			})
+			.done(function( data ) {
+				date = new Date();
+				updateStockData(data);
+			})
+			.fail(function( data ) {
+				console.log("Something gone wrong!!!");
+			});
+		}
+
+		function updateStockData(data){
+			////console.log( data );
+			
+			count=1;
+
+			var tmp;
+			var obj;
+
+			for ( var i in data ){
+
+				tmp = cache[data[i].t];
+
+				/*obj = [
+					date.getHours()+":"+date.getMinutes()+":"+date.getSeconds(), eval(data[i].l_fix), eval(stockPilot[data[i].t])]
+					*/
+				obj = [
+					date.getHours()+":"+date.getMinutes()+":"+date.getSeconds(), 
+					parseFloat(Math.random()*3), 
+					1.5 ];//
+
+				cache[data[i].t].push(obj);
+
+			}
+
+			for ( var j in cache ){
+				buildChart(cache[j],j);
+			}
+
+			var copy = cache;
+			drawChart(copy);
+
+			if(isFirstTime){
+				$("#preloader").fadeOut();
+			}
+
+			isFirstTime = false;
+
+		}
+
+		var count=1;
+		function buildChart(cache,i){
+		
+			drawLineColors(cache,i);
+			//google.charts.setOnLoadCallback(callService);
+
+			function drawLineColors(cache,i) {
+
+				//console.log(i, count)
+		        var name = 'chart_'+count;
+				////console.log(cache,i)
+				if( isFirstTime ){
+					cache.reverse();
+					cache.push (['Time', i, "Pilot"]);
+					cache.reverse();
+				}
+				var data = google.visualization.arrayToDataTable(cache);
+
+				var trend = "START";
+
+				if ( cache.length > 2 ){
+					var stockValue = (cache[cache.length-1][1].toFixed(2));
+					var prevStockValue = (cache[cache.length-2][1].toFixed(2));
+
+					trend = stockValue > prevStockValue;
+
+					if ( trend ){
+						trend = "UP";
+					}else{
+						trend = "DOWN";
+					}
+				}
+
+
+		        var options = {
+		          title: i + ' Stock Performance - ' + stockValue + "€" + " " + trend,
+		          curveType: 'function',
+		          legend: { position: 'bottom' }
+		        };
+		        ////console.log(name);
+
+		        var chart = new google.visualization.LineChart(document.getElementById(name));
+		        
+		        count++;
+
+		        chart.draw(data, options);
+
+			}
+
+		}
+
+		function drawChart(copy) {
+
+			////console.log(copy);
+
+			var local = [];//['Time', 'Ynap', 'MS', 'TSLA']
+			local.push('Time');
+			for ( var i in copy ){
+				local.push(i);
+			}
+			local.push('Average');
+			var dater = [];
+
+			var tmp0 = [];
+			tmp0.push("REAL TIME");
+			var average = 0;
+			for ( var s in copy ){
+				tmp = copy[s][copy[s].length-1];
+				if (tmp[1]>tmp[2] ){
+					tmp0.push(-getPerc(tmp[2],tmp[1]));
+				}else{
+					tmp0.push((getPerc(tmp[2],tmp[1])));
+				}
+				average += tmp0[tmp0.length-1];
+			}
+			//Add average
+			tmp0.push ( average/(tmp0.length-1) );
+
+
+			var finalArr = [];
+			finalArr.push(local);
+			finalArr.push(tmp0);
+
+			//console.log(name);
+
+	        console.log(finalArr);	
+
+	        var data = google.visualization.arrayToDataTable(finalArr);
+
+	        var options = {
+	          chart: {
+	            title: 'Global Stocks Performance',
+	            subtitle: 'Stocks percentage marginality of today'
+	          }
+	        };
+
+	        var chart = new google.charts.Bar(document.getElementById('chart_'+count));
+	        count++;
+	        chart.draw(data, options);
+	      }
+
+	      function getPerc(val1, val2){
+			var res;
+			if ( val1 < val2 ){
+				//console.log(val1/val2*100)
+				res = Number(val1/val2*100-100);
+			}else{
+				//console.log(val2/val1*100)
+				res = Number(val2/val1*100-100);
+			}
+
+			return res;
+		}
+
+	})
+
+
+    </script>
+  </head>
+
+  <body>
+    <!--Div that will hold the pie chart-->
+    <div class="fullPage">Full Page</div>
+    <div id="preloader"><img src="loader.gif" /></div>
+  </body>
+</html>
